@@ -27,6 +27,10 @@ import { ErrorBanner } from "@/components/common/error-banner";
 import { MediaDetailHero } from "@/components/common/media-detail-hero";
 import { MediaDetailSkeleton } from "@/components/common/media-detail-skeleton";
 import {
+  ArrDeleteConfirm,
+  type ArrDeleteChoice,
+} from "@/components/common/arr-delete-confirm";
+import {
   MediaActionBar,
   type MediaActionItem,
 } from "@/components/common/media-action-bar";
@@ -198,7 +202,7 @@ export default function SeriesDetailScreen() {
     toggleSeries.mutate({ seriesId: series.id, monitored: !series.monitored });
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = ({ addExclusion }: ArrDeleteChoice) => {
     const mode = flow.payload("confirmDelete");
     if (!mode) return;
     flow.close();
@@ -206,6 +210,7 @@ export default function SeriesDetailScreen() {
       {
         id: series.id,
         deleteFiles: mode === "withFiles",
+        addExclusion,
       },
       {
         // flow.back() pops only once the confirm has fully dismissed.
@@ -474,8 +479,9 @@ export default function SeriesDetailScreen() {
         ]}
       />
 
-      <ConfirmModal
+      <ArrDeleteConfirm
         {...flow.bind("confirmDelete")}
+        kind="sonarr"
         title={
           flow.payload("confirmDelete") === "withFiles"
             ? "Delete show + files?"
@@ -486,8 +492,6 @@ export default function SeriesDetailScreen() {
             ? `Remove "${series.title}" from Sonarr and delete all episode files from disk. This can't be undone.`
             : `Remove "${series.title}" from Sonarr. Files on disk will be kept.`
         }
-        icon={Trash2}
-        tone="danger"
         confirmLabel={
           flow.payload("confirmDelete") === "withFiles"
             ? "Delete + Files"

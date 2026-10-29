@@ -8,6 +8,7 @@ import type {
   LidarrImage,
   LidarrArtistSearchResult,
   ArrQueueRemoveOptions,
+  ArrDeleteOptions,
 } from "@/lib/types";
 
 // --- Image helpers ---
@@ -228,14 +229,20 @@ export function addArtist(
 
 // --- Delete Artist ---
 
+// Lidarr spells the exclusion param `addImportListExclusion` like Sonarr
+// (ArtistController `DeleteArtist`, read as a query param since at least
+// v0.8), not Radarr's `addImportExclusion`. See ArrDeleteOptions.
 export function deleteArtist(
   id: number,
-  deleteFiles = false,
+  opts: ArrDeleteOptions = {},
   instanceId?: string,
 ): Promise<void> {
   return serviceRequest<void>("lidarr", `/artist/${id}`, {
     method: "DELETE",
-    params: { deleteFiles },
+    params: {
+      deleteFiles: opts.deleteFiles ?? false,
+      addImportListExclusion: opts.addExclusion ?? false,
+    },
     instanceId,
   });
 }

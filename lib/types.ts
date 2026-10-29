@@ -385,6 +385,18 @@ export interface ArrQueueRemoveOptions {
   skipRedownload?: boolean;
 }
 
+/**
+ * Options for deleting a library item (`DELETE /movie/{id}`, `/series/{id}`,
+ * `/artist/{id}`). `addExclusion` is the "Add List Exclusion" box of the *arr
+ * delete dialog: it stops import lists from adding the item back (#472). The
+ * query param name differs per service, so each service maps it: Radarr
+ * `addImportExclusion`, Sonarr and Lidarr `addImportListExclusion`.
+ */
+export interface ArrDeleteOptions {
+  deleteFiles?: boolean;
+  addExclusion?: boolean;
+}
+
 export interface RadarrQueueItem {
   id: number;
   movieId: number;

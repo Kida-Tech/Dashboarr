@@ -188,13 +188,15 @@ export function useDeleteMovie(instanceId?: string) {
     mutationFn: async ({
       id: movieId,
       deleteFiles = false,
+      addExclusion = false,
       tmdbId,
     }: {
       id: number;
       deleteFiles?: boolean;
+      addExclusion?: boolean;
       tmdbId?: number;
     }) => {
-      await deleteMovie(movieId, deleteFiles, id ?? undefined);
+      await deleteMovie(movieId, { deleteFiles, addExclusion }, id ?? undefined);
       // Clear Overseerr media entry so the movie can be re-requested
       if (tmdbId && overseerrEnabled) {
         try {

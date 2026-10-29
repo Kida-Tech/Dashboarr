@@ -31,7 +31,10 @@ import { MediaStatsStrip } from "@/components/common/media-stats-strip";
 import { ExpandableText } from "@/components/common/expandable-text";
 import { Badge } from "@/components/ui/badge";
 import { ActionSheet } from "@/components/ui/action-sheet";
-import { ConfirmModal } from "@/components/common/confirm-modal";
+import {
+  ArrDeleteConfirm,
+  type ArrDeleteChoice,
+} from "@/components/common/arr-delete-confirm";
 import {
   useRadarrMovie,
   useRadarrMovies,
@@ -164,7 +167,7 @@ export default function MovieDetailScreen() {
 
   const imdbUrl = imdbTitleUrl(movie.imdbId);
 
-  const confirmDelete = () => {
+  const confirmDelete = ({ addExclusion }: ArrDeleteChoice) => {
     const mode = flow.payload("confirmDelete");
     if (!mode) return;
     flow.close();
@@ -172,6 +175,7 @@ export default function MovieDetailScreen() {
       {
         id: movie.id,
         deleteFiles: mode === "withFiles",
+        addExclusion,
         tmdbId: movie.tmdbId,
       },
       {
@@ -456,8 +460,9 @@ export default function MovieDetailScreen() {
         ]}
       />
 
-      <ConfirmModal
+      <ArrDeleteConfirm
         {...flow.bind("confirmDelete")}
+        kind="radarr"
         title={
           flow.payload("confirmDelete") === "withFiles"
             ? "Delete movie + files?"
@@ -468,8 +473,6 @@ export default function MovieDetailScreen() {
             ? `Remove "${movie.title}" from Radarr and delete files from disk. This can't be undone.`
             : `Remove "${movie.title}" from Radarr. Files on disk will be kept.`
         }
-        icon={Trash2}
-        tone="danger"
         confirmLabel={
           flow.payload("confirmDelete") === "withFiles"
             ? "Delete + Files"

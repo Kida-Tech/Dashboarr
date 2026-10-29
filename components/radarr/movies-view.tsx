@@ -25,6 +25,11 @@ import { FilterSortButton } from "@/components/common/filter-sort-button";
 import { FilterSortSheet } from "@/components/common/filter-sort-sheet";
 import { ConfirmModal } from "@/components/common/confirm-modal";
 import {
+  ArrDeleteConfirm,
+  type ArrDeleteChoice,
+} from "@/components/common/arr-delete-confirm";
+import { toastError } from "@/components/ui/toast";
+import {
   MonitoredLibraryGrid,
   MONITOR_FILTER_OPTIONS,
   type MonitorFilter,
@@ -272,14 +277,18 @@ export const MoviesView = memo(function MoviesView({
   };
 
   const pendingDelete = flow.payload("confirmDelete");
-  const confirmDelete = () => {
+  const confirmDelete = ({ addExclusion }: ArrDeleteChoice) => {
     if (!pendingDelete) return;
     flow.close();
-    deleteMutation.mutate({
-      id: pendingDelete.id,
-      deleteFiles: pendingDelete.withFiles,
-      tmdbId: pendingDelete.tmdbId,
-    });
+    deleteMutation.mutate(
+      {
+        id: pendingDelete.id,
+        deleteFiles: pendingDelete.withFiles,
+        addExclusion,
+        tmdbId: pendingDelete.tmdbId,
+      },
+      { onError: (err) => toastError("Failed to delete movie", err) },
+    );
   };
 
   const handleSearchMissing = () => {
@@ -440,8 +449,9 @@ export const MoviesView = memo(function MoviesView({
         }}
       />
 
-      <ConfirmModal
+      <ArrDeleteConfirm
         {...flow.bind("confirmDelete")}
+        kind="radarr"
         title={pendingDelete?.withFiles ? "Delete movie + files?" : "Delete movie?"}
         message={
           pendingDelete
@@ -450,8 +460,6 @@ export const MoviesView = memo(function MoviesView({
               : `Remove "${pendingDelete.title}" from Radarr. Files on disk will be kept.`
             : ""
         }
-        icon={Trash2}
-        tone="danger"
         confirmLabel={pendingDelete?.withFiles ? "Delete + Files" : "Delete"}
         onConfirm={confirmDelete}
       />

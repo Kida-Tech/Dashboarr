@@ -19,6 +19,7 @@ import type {
   RadarrCollection,
   ArrQualityDefinition,
   ArrQueueRemoveOptions,
+  ArrDeleteOptions,
 } from "@/lib/types";
 
 // --- Image helpers ---
@@ -315,14 +316,20 @@ export function addMovie(
 
 // --- Delete Movie ---
 
+// Radarr spells the exclusion param `addImportExclusion` (MovieController
+// `DeleteMovie(int id, bool deleteFiles, bool addImportExclusion)`), unlike
+// Sonarr and Lidarr's `addImportListExclusion`. See ArrDeleteOptions.
 export function deleteMovie(
   id: number,
-  deleteFiles = false,
+  opts: ArrDeleteOptions = {},
   instanceId?: string,
 ): Promise<void> {
   return serviceRequest<void>("radarr", `/movie/${id}`, {
     method: "DELETE",
-    params: { deleteFiles },
+    params: {
+      deleteFiles: opts.deleteFiles ?? false,
+      addImportExclusion: opts.addExclusion ?? false,
+    },
     instanceId,
   });
 }

@@ -137,10 +137,12 @@ export function useDeleteArtist(instanceId?: string) {
     mutationFn: ({
       id: artistId,
       deleteFiles = false,
+      addExclusion = false,
     }: {
       id: number;
       deleteFiles?: boolean;
-    }) => deleteArtist(artistId, deleteFiles, id ?? undefined),
+      addExclusion?: boolean;
+    }) => deleteArtist(artistId, { deleteFiles, addExclusion }, id ?? undefined),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lidarr", id, "artists"] });
     },

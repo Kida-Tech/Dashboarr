@@ -170,10 +170,12 @@ export function useDeleteSeries(instanceId?: string) {
     mutationFn: ({
       id: seriesId,
       deleteFiles = false,
+      addExclusion = false,
     }: {
       id: number;
       deleteFiles?: boolean;
-    }) => deleteSeries(seriesId, deleteFiles, id ?? undefined),
+      addExclusion?: boolean;
+    }) => deleteSeries(seriesId, { deleteFiles, addExclusion }, id ?? undefined),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sonarr", id, "series"] });
     },

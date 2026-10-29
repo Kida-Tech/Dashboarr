@@ -34,6 +34,8 @@ import {
   type ActionSheetAction,
 } from "@/components/ui/action-sheet";
 import { ConfirmModal } from "@/components/common/confirm-modal";
+import { ArrDeleteConfirm } from "@/components/common/arr-delete-confirm";
+import { toastError } from "@/components/ui/toast";
 import { FilterSortButton } from "@/components/common/filter-sort-button";
 import { FilterSortSheet } from "@/components/common/filter-sort-sheet";
 import { useLibraryTagFilter } from "@/hooks/use-library-tag-filter";
@@ -475,8 +477,9 @@ export const TvView = memo(function TvView({
         }}
       />
 
-      <ConfirmModal
+      <ArrDeleteConfirm
         {...flow.bind("confirmDelete")}
+        kind="sonarr"
         title={deleteTarget?.withFiles ? "Delete show + files?" : "Delete show?"}
         message={
           deleteTarget
@@ -485,16 +488,18 @@ export const TvView = memo(function TvView({
               : `Remove "${deleteTarget.title}" from Sonarr. Files on disk will be kept.`
             : ""
         }
-        icon={Trash2}
-        tone="danger"
         confirmLabel={deleteTarget?.withFiles ? "Delete + Files" : "Delete"}
-        onConfirm={() => {
+        onConfirm={({ addExclusion }) => {
           if (!deleteTarget) return;
           flow.close();
-          deleteMutation.mutate({
-            id: deleteTarget.id,
-            deleteFiles: deleteTarget.withFiles,
-          });
+          deleteMutation.mutate(
+            {
+              id: deleteTarget.id,
+              deleteFiles: deleteTarget.withFiles,
+              addExclusion,
+            },
+            { onError: (err) => toastError("Failed to delete show", err) },
+          );
         }}
       />
     </>

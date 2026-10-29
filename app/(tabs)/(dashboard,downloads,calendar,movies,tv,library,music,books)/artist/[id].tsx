@@ -31,7 +31,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { ActionSheet } from "@/components/ui/action-sheet";
-import { ConfirmModal } from "@/components/common/confirm-modal";
+import {
+  ArrDeleteConfirm,
+  type ArrDeleteChoice,
+} from "@/components/common/arr-delete-confirm";
 import {
   useLidarrArtist,
   useLidarrAlbums,
@@ -114,12 +117,12 @@ export default function ArtistDetailScreen() {
     toggleArtist.mutate({ artistId: artist.id, monitored: !artist.monitored });
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = ({ addExclusion }: ArrDeleteChoice) => {
     const mode = flow.payload("confirmDelete");
     if (!mode) return;
     flow.close();
     deleteArtist.mutate(
-      { id: artist.id, deleteFiles: mode === "withFiles" },
+      { id: artist.id, deleteFiles: mode === "withFiles", addExclusion },
       {
         // flow.back() pops only once the confirm has fully dismissed.
         onSuccess: () => flow.back(),
@@ -347,8 +350,9 @@ export default function ArtistDetailScreen() {
         ]}
       />
 
-      <ConfirmModal
+      <ArrDeleteConfirm
         {...flow.bind("confirmDelete")}
+        kind="lidarr"
         title={
           flow.payload("confirmDelete") === "withFiles"
             ? "Delete artist + files?"
@@ -359,8 +363,6 @@ export default function ArtistDetailScreen() {
             ? `Remove "${artist.artistName}" from Lidarr and delete all files from disk. This can't be undone.`
             : `Remove "${artist.artistName}" from Lidarr. Files on disk will be kept.`
         }
-        icon={Trash2}
-        tone="danger"
         confirmLabel={
           flow.payload("confirmDelete") === "withFiles"
             ? "Delete + Files"

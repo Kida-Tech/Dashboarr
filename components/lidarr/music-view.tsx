@@ -26,6 +26,8 @@ import { FilterSortSheet } from "@/components/common/filter-sort-sheet";
 import { useLibraryTagFilter } from "@/hooks/use-library-tag-filter";
 import { tagLabelResolver } from "@/lib/library-tags";
 import { ConfirmModal } from "@/components/common/confirm-modal";
+import { ArrDeleteConfirm } from "@/components/common/arr-delete-confirm";
+import { toastError } from "@/components/ui/toast";
 import {
   MonitoredLibraryGrid,
   MONITOR_FILTER_OPTIONS,
@@ -399,8 +401,9 @@ export const MusicView = memo(function MusicView({
         }}
       />
 
-      <ConfirmModal
+      <ArrDeleteConfirm
         {...flow.bind("confirmDelete")}
+        kind="lidarr"
         title={pendingDelete?.withFiles ? "Delete artist + files?" : "Delete artist?"}
         message={
           pendingDelete
@@ -409,15 +412,17 @@ export const MusicView = memo(function MusicView({
               : `Remove "${pendingDelete.title}" from Lidarr. Files on disk will be kept.`
             : ""
         }
-        icon={Trash2}
-        tone="danger"
         confirmLabel={pendingDelete?.withFiles ? "Delete + Files" : "Delete"}
-        onConfirm={() => {
+        onConfirm={({ addExclusion }) => {
           if (pendingDelete) {
-            deleteMutation.mutate({
-              id: pendingDelete.id,
-              deleteFiles: pendingDelete.withFiles,
-            });
+            deleteMutation.mutate(
+              {
+                id: pendingDelete.id,
+                deleteFiles: pendingDelete.withFiles,
+                addExclusion,
+              },
+              { onError: (err) => toastError("Failed to delete artist", err) },
+            );
           }
           flow.close();
         }}

@@ -22,6 +22,7 @@ import type {
   SonarrWantedMissing,
   ArrQualityDefinition,
   ArrQueueRemoveOptions,
+  ArrDeleteOptions,
 } from "@/lib/types";
 
 // --- Image helpers ---
@@ -394,14 +395,20 @@ export function addSeries(
 
 // --- Delete Series ---
 
+// Sonarr spells the exclusion param `addImportListExclusion` (SeriesController
+// `DeleteSeries(int id, bool deleteFiles, bool addImportListExclusion)`), not
+// Radarr's `addImportExclusion`. See ArrDeleteOptions.
 export function deleteSeries(
   id: number,
-  deleteFiles = false,
+  opts: ArrDeleteOptions = {},
   instanceId?: string,
 ): Promise<void> {
   return serviceRequest<void>("sonarr", `/series/${id}`, {
     method: "DELETE",
-    params: { deleteFiles },
+    params: {
+      deleteFiles: opts.deleteFiles ?? false,
+      addImportListExclusion: opts.addExclusion ?? false,
+    },
     instanceId,
   });
 }
