@@ -2344,6 +2344,9 @@ export interface JellyfinPlayState {
 
 export interface JellyfinSession {
   Id: string;
+  // The server's SystemId, stamped on every session (Emby's SessionInfo has it
+  // too). Id is only unique per server, so this scopes it (#460).
+  ServerId?: string;
   UserId?: string;
   UserName?: string;
   Client: string;

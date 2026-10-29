@@ -4,6 +4,7 @@ import {
   formatBitrateKbps,
   formatEpisodeStreamTitle,
   isLocalEndpoint,
+  mediaServerSessionIdentity,
   mediaServerSessionToStream,
   type NowPlayingStream,
   type StreamDetails,
@@ -51,6 +52,9 @@ import {
  * so they set `supportsHistory: false` and the Activity tab's History view omits
  * them. JellyStat surfaces history/stats for Jellyfin the way Tautulli does for
  * Plex; its live sessions come from JellyStat's /proxy/getSessions passthrough.
+ * So with both configured, one playback arrives twice with the same
+ * sessionIdentity, and the Activity tab collapses the pair with dedupeStreams
+ * (#460).
  */
 export const MONITOR_KINDS = ["tautulli", "tracearr", "jellystat", "jellyfin", "emby"] as const;
 export type MonitorKind = (typeof MONITOR_KINDS)[number];
@@ -309,6 +313,7 @@ function jellystatSessionToStream(s: JellyfinSession, instanceId: string): NowPl
     key: `jellystat:${instanceId}:${s.Id}`,
     serviceId: "jellystat",
     instanceId,
+    sessionIdentity: mediaServerSessionIdentity(s),
     title,
     user: s.UserName,
     device: s.Client,

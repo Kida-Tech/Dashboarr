@@ -36,7 +36,11 @@ import {
   type MonitorHistoryItem,
   type MonitorKind,
 } from "@/lib/monitor-adapter";
-import type { NowPlayingStream, StreamDetails } from "@/lib/now-playing-stream";
+import {
+  dedupeStreams,
+  type NowPlayingStream,
+  type StreamDetails,
+} from "@/lib/now-playing-stream";
 
 type Tab = "streams" | "history";
 
@@ -195,8 +199,14 @@ function ActiveStreams({
     return <ErrorBanner error={error} title="Failed to load active streams" />;
   }
 
-  const streams: NowPlayingStream[] = queries.flatMap((q) => q.data?.streams ?? []);
-  const streamCount = queries.reduce((acc, q) => acc + (q.data?.streamCount ?? 0), 0);
+  // Jellyfin/Emby and a JellyStat in front of the same server report every
+  // playback twice; fold those pairs into one row and take them off the count
+  // too (#460). Both sides count sessions.length, so the subtraction is exact.
+  const { streams, dropped } = dedupeStreams(queries.flatMap((q) => q.data?.streams ?? []));
+  const streamCount = Math.max(
+    0,
+    queries.reduce((acc, q) => acc + (q.data?.streamCount ?? 0), 0) - dropped,
+  );
   const bandwidthLabels = queries
     .map((q) => q.data?.bandwidthLabel)
     .filter((l): l is string => !!l);

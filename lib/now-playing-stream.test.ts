@@ -43,6 +43,9 @@ import {
   isLocalEndpoint,
   parseHiddenUsers,
   streamArtwork,
+  mediaServerSessionIdentity,
+  dedupeStreams,
+  type NowPlayingStream,
 } from "./now-playing-stream";
 import type {
   JellyfinItem,
@@ -445,6 +448,121 @@ describe("mediaServerSessionToStream", () => {
     );
     expect(movie.poster?.uri).toBe("ep:m-tag");
     expect(movie.episodeStill).toBeUndefined();
+  });
+
+  it("stamps the server-scoped session identity (#460)", () => {
+    const s = mediaServerSessionToStream(
+      { ...jellyfinSession({}), Id: "sess", ServerId: "srv" },
+      "i",
+      "jellyfin",
+    );
+    expect(s.sessionIdentity).toBe("mediaserver:srv:sess");
+  });
+});
+
+describe("mediaServerSessionIdentity", () => {
+  it("scopes the session Id by ServerId", () => {
+    expect(mediaServerSessionIdentity({ Id: "sess", ServerId: "srv" })).toBe(
+      "mediaserver:srv:sess",
+    );
+  });
+
+  // Without ServerId the Id is not unique across servers, so the row must stay
+  // unmerged rather than risk folding two servers' sessions together.
+  it("is undefined when either half is missing", () => {
+    expect(mediaServerSessionIdentity({ Id: "sess" })).toBeUndefined();
+    expect(mediaServerSessionIdentity({ Id: "sess", ServerId: "" })).toBeUndefined();
+    expect(mediaServerSessionIdentity({ Id: "", ServerId: "srv" })).toBeUndefined();
+  });
+});
+
+describe("dedupeStreams", () => {
+  function row(over: Partial<NowPlayingStream> & Pick<NowPlayingStream, "key">): NowPlayingStream {
+    return {
+      serviceId: "jellyfin",
+      instanceId: "i",
+      title: "Pilot",
+      user: "carol",
+      device: "Jellyfin Web",
+      isLocal: false,
+      state: "playing",
+      transcoding: false,
+      progress: 0.5,
+      poster: null,
+      mediaType: "movie",
+      ...over,
+    };
+  }
+  const poster = { uri: "p", cacheKey: "p" };
+  const jellystat = row({
+    key: "jellystat:js1:sess",
+    serviceId: "jellystat",
+    instanceId: "js1",
+    sessionIdentity: "mediaserver:srv:sess",
+  });
+  const jellyfin = row({
+    key: "jellyfin:jf1:sess",
+    instanceId: "jf1",
+    poster,
+    sessionIdentity: "mediaserver:srv:sess",
+  });
+
+  it("keeps the native Jellyfin copy over JellyStat's, in the first slot", () => {
+    const other = row({ key: "tautulli:t1:1", serviceId: "tautulli" });
+    const { streams, dropped } = dedupeStreams([other, jellystat, jellyfin]);
+    expect(streams).toEqual([other, jellyfin]);
+    expect(dropped).toBe(1);
+  });
+
+  it("picks the same winner whichever source comes first", () => {
+    expect(dedupeStreams([jellyfin, jellystat]).streams).toEqual([jellyfin]);
+  });
+
+  it("keeps the JellyStat copy when it is the only one (Jellyfin unreachable)", () => {
+    expect(dedupeStreams([jellystat])).toEqual({ streams: [jellystat], dropped: 0 });
+  });
+
+  it("keeps the native Emby copy over a JellyStat in Emby mode", () => {
+    const emby = row({
+      key: "emby:e1:sess",
+      serviceId: "emby",
+      instanceId: "e1",
+      poster,
+      sessionIdentity: "mediaserver:srv:sess",
+    });
+    expect(dedupeStreams([jellystat, emby]).streams).toEqual([emby]);
+  });
+
+  it("collapses two JellyStats and a Jellyfin on one server into one row", () => {
+    const second = { ...jellystat, key: "jellystat:js2:sess", instanceId: "js2" };
+    const { streams, dropped } = dedupeStreams([jellystat, second, jellyfin]);
+    expect(streams).toEqual([jellyfin]);
+    expect(dropped).toBe(2);
+  });
+
+  // Session Id is MD5(Client + DeviceId): one app on one device has the same Id
+  // on two servers, and those are two real streams.
+  it("keeps the same session Id on two different servers apart", () => {
+    const otherServer = row({
+      key: "jellyfin:jf2:sess",
+      instanceId: "jf2",
+      sessionIdentity: "mediaserver:srv2:sess",
+    });
+    expect(dedupeStreams([jellyfin, otherServer])).toEqual({
+      streams: [jellyfin, otherServer],
+      dropped: 0,
+    });
+  });
+
+  // No shared upstream session id, so these are never merged, even when every
+  // visible field matches (#362).
+  it("leaves rows without an identity alone", () => {
+    const tautulli = row({ key: "tautulli:t1:1", serviceId: "tautulli" });
+    const tracearr = row({ key: "tracearr:tr1:x", serviceId: "tracearr" });
+    expect(dedupeStreams([tautulli, tracearr])).toEqual({
+      streams: [tautulli, tracearr],
+      dropped: 0,
+    });
   });
 });
 
