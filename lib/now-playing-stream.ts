@@ -423,12 +423,15 @@ export function mediaServerSessionIdentity(
     : undefined;
 }
 
-// Which copy of a merged playback survives. JellyStat passes the server's own
-// SessionInfo through, so the native Jellyfin/Emby row carries the same data
-// plus artwork (JellyStat rows have no poster) and wins. A JellyStat row still
-// shows when it is the only copy, e.g. while the Jellyfin instance is down.
-function mergePriority(stream: NowPlayingStream): number {
-  return stream.serviceId === "jellyfin" || stream.serviceId === "emby" ? 1 : 0;
+// Which copy of a merged playback survives. A fresh copy always beats a stale
+// one (the last good snapshot of a source whose latest poll failed), so a
+// Jellyfin that loaded once and then became unreachable can't freeze a row the
+// JellyStat copy is still updating. Between equally fresh copies, JellyStat
+// passes the server's own SessionInfo through, so the native Jellyfin/Emby row
+// carries the same data plus artwork (JellyStat rows have no poster) and wins.
+function mergePriority(stream: NowPlayingStream, stale: boolean): number {
+  const native = stream.serviceId === "jellyfin" || stream.serviceId === "emby" ? 1 : 0;
+  return (stale ? 0 : 2) + native;
 }
 
 /**
@@ -436,10 +439,14 @@ function mergePriority(stream: NowPlayingStream): number {
  * priority copy (ties keep the first) in the slot of the first occurrence so
  * the list doesn't reshuffle when the winner changes. Rows without an identity
  * pass through untouched: there is no title/user/device matching, which could
- * hide two genuinely different streams (#362). `dropped` is how many rows were
- * folded away, for callers that also sum per-source stream counts.
+ * hide two genuinely different streams (#362). `isStale` marks rows from a
+ * source whose latest poll failed. `dropped` is how many rows were folded
+ * away, for callers that also sum per-source stream counts.
  */
-export function dedupeStreams(streams: NowPlayingStream[]): {
+export function dedupeStreams(
+  streams: NowPlayingStream[],
+  isStale: (stream: NowPlayingStream) => boolean = () => false,
+): {
   streams: NowPlayingStream[];
   dropped: number;
 } {
@@ -459,7 +466,10 @@ export function dedupeStreams(streams: NowPlayingStream[]): {
       continue;
     }
     dropped += 1;
-    if (mergePriority(stream) > mergePriority(out[slot]!)) out[slot] = stream;
+    const current = out[slot]!;
+    if (mergePriority(stream, isStale(stream)) > mergePriority(current, isStale(current))) {
+      out[slot] = stream;
+    }
   }
   return { streams: out, dropped };
 }

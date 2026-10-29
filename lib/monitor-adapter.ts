@@ -3,6 +3,7 @@ import {
   EPISODE_STILL_WIDTH,
   formatBitrateKbps,
   formatEpisodeStreamTitle,
+  dedupeStreams,
   isLocalEndpoint,
   mediaServerSessionIdentity,
   mediaServerSessionToStream,
@@ -53,8 +54,8 @@ import {
  * them. JellyStat surfaces history/stats for Jellyfin the way Tautulli does for
  * Plex; its live sessions come from JellyStat's /proxy/getSessions passthrough.
  * So with both configured, one playback arrives twice with the same
- * sessionIdentity, and the Activity tab collapses the pair with dedupeStreams
- * (#460).
+ * sessionIdentity, and the Activity tab collapses the pair with
+ * mergeMonitorActivity (#460).
  */
 export const MONITOR_KINDS = ["tautulli", "tracearr", "jellystat", "jellyfin", "emby"] as const;
 export type MonitorKind = (typeof MONITOR_KINDS)[number];
@@ -438,4 +439,35 @@ const ADAPTERS: Record<MonitorKind, MonitorAdapter> = {
 
 export function getMonitorAdapter(kind: MonitorKind): MonitorAdapter {
   return ADAPTERS[kind];
+}
+
+// One source's activity query as the merge sees it (a TanStack query result
+// fits). `isError` with `data` means the latest poll failed and `data` is the
+// last good snapshot, which TanStack keeps across a failed refetch.
+export interface MonitorActivityResult {
+  data: MonitorActivity | undefined;
+  isError: boolean;
+}
+
+/**
+ * Every source's live streams as one list plus the matching count, with the
+ * Jellyfin/Emby + JellyStat duplicates folded together (#460). Both sides
+ * count sessions.length, so subtracting the folded rows keeps the count exact.
+ * Rows from a source whose latest poll failed are marked stale, so a fresh
+ * copy of the same playback wins over them.
+ */
+export function mergeMonitorActivity(results: readonly MonitorActivityResult[]): {
+  streams: NowPlayingStream[];
+  streamCount: number;
+} {
+  const stale = new Set<NowPlayingStream>();
+  for (const r of results) {
+    if (r.isError) for (const s of r.data?.streams ?? []) stale.add(s);
+  }
+  const { streams, dropped } = dedupeStreams(
+    results.flatMap((r) => r.data?.streams ?? []),
+    (s) => stale.has(s),
+  );
+  const total = results.reduce((acc, r) => acc + (r.data?.streamCount ?? 0), 0);
+  return { streams, streamCount: Math.max(0, total - dropped) };
 }

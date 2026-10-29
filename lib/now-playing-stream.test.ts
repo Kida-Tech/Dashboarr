@@ -522,6 +522,24 @@ describe("dedupeStreams", () => {
     expect(dedupeStreams([jellystat])).toEqual({ streams: [jellystat], dropped: 0 });
   });
 
+  // Jellyfin's query failed after loading once, so its row is the last good
+  // snapshot while JellyStat's is live.
+  it("keeps a fresh JellyStat copy over a stale Jellyfin one", () => {
+    const stale = (s: NowPlayingStream) => s === jellyfin;
+    expect(dedupeStreams([jellyfin, jellystat], stale)).toEqual({
+      streams: [jellystat],
+      dropped: 1,
+    });
+    expect(dedupeStreams([jellystat, jellyfin], stale).streams).toEqual([jellystat]);
+  });
+
+  it("keeps the native copy when both are stale or only JellyStat is", () => {
+    expect(dedupeStreams([jellystat, jellyfin], () => true).streams).toEqual([jellyfin]);
+    expect(dedupeStreams([jellyfin, jellystat], (s) => s === jellystat).streams).toEqual([
+      jellyfin,
+    ]);
+  });
+
   it("keeps the native Emby copy over a JellyStat in Emby mode", () => {
     const emby = row({
       key: "emby:e1:sess",

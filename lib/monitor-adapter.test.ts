@@ -35,8 +35,7 @@ jest.mock("@/services/jellystat-api", () => ({
 
 import { getSessions as getJellyfinSessions } from "@/services/jellyfin-api";
 import { getSessions as getJellystatSessions } from "@/services/jellystat-api";
-import { getMonitorAdapter } from "./monitor-adapter";
-import { dedupeStreams } from "./now-playing-stream";
+import { getMonitorAdapter, mergeMonitorActivity } from "./monitor-adapter";
 import type { JellyfinSession } from "./types";
 
 const jellyfinMock = getJellyfinSessions as jest.MockedFunction<typeof getJellyfinSessions>;
@@ -62,14 +61,20 @@ function session(over: Partial<JellyfinSession> = {}): JellyfinSession {
   } as JellyfinSession;
 }
 
-// Mirrors the Activity tab, which merges every source's rows in one pass.
-async function activeStreams(sources: { kind: "jellystat" | "jellyfin" | "emby"; id: string }[]) {
+type Source = { kind: "jellystat" | "jellyfin" | "emby"; id: string; isError?: boolean };
+
+// Feeds each source's adapter output through the Activity tab's merge. A
+// source with `isError` stands for a query whose latest poll failed while
+// TanStack still holds its last good data.
+async function activeStreams(sources: Source[]) {
   const results = await Promise.all(
-    sources.map((s) => getMonitorAdapter(s.kind).getActivity(s.id)),
+    sources.map(async (s) => ({
+      data: await getMonitorAdapter(s.kind).getActivity(s.id),
+      isError: s.isError ?? false,
+    })),
   );
-  const { streams, dropped } = dedupeStreams(results.flatMap((r) => r.streams));
-  const count = results.reduce((acc, r) => acc + r.streamCount, 0) - dropped;
-  return { streams, count };
+  const { streams, streamCount } = mergeMonitorActivity(results);
+  return { streams, count: streamCount };
 }
 
 beforeEach(() => {
@@ -110,6 +115,44 @@ describe("Jellyfin + JellyStat active streams (#460)", () => {
     ]);
     expect(streams.map((s) => s.serviceId)).toEqual(["jellystat"]);
     expect(count).toBe(1);
+  });
+
+  // Jellyfin loaded once (e.g. on home Wi-Fi with a LAN-only URL) and now
+  // fails every poll, while JellyStat keeps answering. The frozen Jellyfin row
+  // must not hide the live JellyStat copy.
+  it("prefers the live JellyStat row over a stale Jellyfin snapshot", async () => {
+    jellyfinMock.mockResolvedValue([session()]);
+    jellystatMock.mockResolvedValue([
+      session({ PlayState: { PositionTicks: 900_000_000, IsPaused: true } }),
+    ]);
+    const { streams, count } = await activeStreams([
+      { kind: "jellyfin", id: "jf1", isError: true },
+      { kind: "jellystat", id: "js1" },
+    ]);
+    expect(streams.map((s) => s.serviceId)).toEqual(["jellystat"]);
+    expect(streams[0]!.state).toBe("paused");
+    expect(count).toBe(1);
+  });
+
+  it("still prefers the Jellyfin row when both sources are stale", async () => {
+    jellyfinMock.mockResolvedValue([session()]);
+    jellystatMock.mockResolvedValue([session()]);
+    const { streams } = await activeStreams([
+      { kind: "jellystat", id: "js1", isError: true },
+      { kind: "jellyfin", id: "jf1", isError: true },
+    ]);
+    expect(streams.map((s) => s.serviceId)).toEqual(["jellyfin"]);
+  });
+
+  it("ignores a source that errored before it ever loaded", async () => {
+    jellystatMock.mockResolvedValue([session()]);
+    const jellystat = await getMonitorAdapter("jellystat").getActivity("js1");
+    const { streams, streamCount } = mergeMonitorActivity([
+      { data: undefined, isError: true },
+      { data: jellystat, isError: false },
+    ]);
+    expect(streams.map((s) => s.serviceId)).toEqual(["jellystat"]);
+    expect(streamCount).toBe(1);
   });
 
   it("keeps two real playbacks on different servers apart", async () => {
