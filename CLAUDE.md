@@ -110,6 +110,7 @@ The app exposes a global UI scale preference (1.0 / 1.15 / 1.3) wired via Native
   </ScrollView>
   ```
   Same applies to any horizontal list of items whose count or label length isn't tightly bounded — at higher scales they'll exceed the viewport and clip.
+  When the row sits in a non-scrolling column (`ScreenWrapper scrollable={false}` above a `FlatList`), add `grow-0 shrink-0` to its className, or ScrollView's default flexGrow/flexShrink 1 squeezes it against the list and clips the chip labels (#487).
 
 ## Keyboard Avoidance — MUST follow for any UI with text inputs
 

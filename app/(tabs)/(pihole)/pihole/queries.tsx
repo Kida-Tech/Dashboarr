@@ -105,11 +105,14 @@ export default function PiholeQueriesScreen() {
         containerClassName="mb-2"
       />
 
+      {/* grow-0 shrink-0: a ScrollView defaults to flexGrow/flexShrink 1, so
+          in this non-scrolling column it would squeeze against the FlatList
+          and clip the chip labels (#487), or stretch when the list is short. */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerClassName="gap-2"
-        className="mb-3"
+        className="mb-3 grow-0 shrink-0"
       >
         {VERDICTS.map((v) => (
           <FilterChip
